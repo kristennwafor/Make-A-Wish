@@ -1,0 +1,255 @@
+---
+title: "Graph Draft 1"
+output: html_document
+date: "2023-03-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+data <-  read.csv("volunteer_data.csv") 
+
+View(data)
+
+head(data) # Loads a few rows and columns of the dataset
+sapply(data, class) # Let's examine the classes of all the variables we are working with
+```
+
+
+Number of Alumni Bar Plot:
+```{r}
+data$Alumni.Categories <- ifelse(data$Alumni.Engagement == "Wish Parent/Guardians", "Wish Parent/Guardian", data$Alumni.Engagement)
+data$Alumni.Categories <- as.factor(data$Alumni.Categories)
+
+
+data$Alumni.Engagement <- as.factor(data$Alumni.Engagement)
+levels(data$Alumni.Engagement)
+
+Num_Alumni <- data %>%
+  group_by(Alumni.Categories) %>%
+  summarise(total=n()) %>%  filter (Alumni.Categories != "")
+
+ggplot(Num_Alumni) + #sets data table
+  aes(Alumni.Categories,total, fill = Alumni.Categories) + #x-axis = column Year, y-axis = column Total
+  geom_bar(stat="identity") + #point plot
+  ylab('Total People') + #y-axis label
+  xlab('Type of Alumni Donor') + #x-axis label
+  ggtitle('Total Number of Each Alumni Donor Type') #plot title
+
+
+```
+
+```{r}
+# go through data to remove the mistakes
+
+data$City <- as.factor(data$City)
+levels(data$City)
+
+donor_counts <- data %>%
+  group_by(State, Alumni.Categories) %>% 
+  summarise(count = n()) %>%
+  filter(Alumni.Categories != "" & State != "")  
+  
+ggplot(donor_counts, aes(x = State, y = count, fill = State)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Number of Donors per State", x = "State", y = "Total People") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme_minimal() + 
+  scale_y_continuous(breaks = seq(0, max(donor_counts$count), by = 5))
+  
+
+```
+
+Top Wish Discovery Stage by Region (State)
+```{r}
+
+Discov_Regions <- data %>%
+  group_by(Wish.Discovery.Stage, State) %>%
+  summarise(count=n()) %>%
+  filter (Wish.Discovery.Stage != "" & State != "")
+print(Discov_Regions)
+
+top_states <- Discov_Regions %>%
+  head(5, drop = FALSE)
+
+Discov_Regions<- rbind(top_states)
+
+
+ggplot(Discov_Regions, aes(x = State, y = count, fill = Wish.Discovery.Stage)) +
+  geom_bar(stat="identity") + #point plot
+  ylab('Total People') + #y-axis label
+  xlab('State') + #x-axis label
+  ggtitle('Top 5 States with the Largest Amount of Wish Discovery Volunteers')+ #plot title
+  scale_fill_manual(values = c("#C4A484", "#8ABD91"),
+                    labels = c("Wish Celebration","Wish Discovery")) + 
+  theme(plot.title = element_text(size = 15))#hjust=0.5))
+
+
+```
+```{r}
+wish_table <- data %>%
+  select("Active.Wish.Granter", "Number.Of.Active.Wishes", "Number.Of.Wishes.Granted") %>%
+  na.omit() # Remove rows with missing values
+
+# Summarize the data to get the total number of values for each column
+summary_table <- wish_table %>%
+  summarise_all(funs(sum(!is.na(.))))
+
+# Print the summary table
+print(summary_table)
+```
+Wish Discovery Stage by Region (City)
+```{r}
+
+Discov_Regions <- data %>%
+  group_by(Wish.Discovery.Stage, City) %>%
+  #summarise(count=n()) %>%
+  summarise(total_people = n())%>%
+  filter (Wish.Discovery.Stage != "" & City != "") 
+  
+
+# Sort the table by the number of people in each state
+Discov_Regions <- Discov_Regions %>%
+  arrange(desc(total_people))
+
+
+# Select the top 5 and bottom 5 states
+top_cities <- Discov_Regions %>%
+  head(5, drop = FALSE)
+
+bottom_cities <- Discov_Regions %>%
+  tail(5, drop = FALSE)
+print(top_states)
+print(bottom_states)
+
+Discov_Regions <- rbind(top_cities)
+
+ggplot(Discov_Regions, aes(x = City, y = total_people)) +
+  geom_bar(stat="identity", fill = "#8ABD91") + #point plot
+  ylab('Total Number of People') + #y-axis label
+  xlab('City') + #x-axis label
+  ggtitle('Top 5 Cities with the Largest Amount of Wish Discovery Volunteers')+ #plot title
+  # theme(axis.text.x = element_text(angle = 200, hjust = 1)) +
+  # theme_minimal()
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + #tilt the x-axis labels
+    theme_minimal()
+
+```
+
+```{r}
+library(ggplot2)
+
+# Assuming the data frame containing the data is called "data"
+# Count the number of active and inactive wish granters
+granter_counts <- data %>%
+  count(Active.Wish.Granter)%>%
+  filter (Active.Wish.Granter != "") 
+print(granter_counts)
+
+one_values <- round((granter_counts[2,2] / (granter_counts[2,2] + granter_counts[1,2]) ) * 100,2)
+zero_values <- round((granter_counts[1,2] / (granter_counts[2,2] + granter_counts[1,2]) ) * 100, 2)
+
+pie_labels <- c(zero_values, one_values)
+
+# Create a pie chart
+ggplot(granter_counts, aes(x = "", y = n, fill = factor(Active.Wish.Granter))) +
+  geom_bar(stat = "identity", color = "white") +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  geom_text(aes(label = pie_labels)) + 
+  labs(title = "Active vs Inactive Wish Granters") +
+  scale_fill_manual(values = c("#8ABD91", "#C4A484"), name = "Active Wish Granter", labels = c("Inactive", "Active")) +
+  theme(plot.title = element_text(hjust = 0.5, size = 16, face = "bold"))
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Subset the data to only include rows where Number.Of.Active.Wishes is not NA
+data_subset <- data %>% filter(!is.na(Number.Of.Active.Wishes))
+
+# Group the data by City and calculate the sum of Number.Of.Active.Wishes for each city
+active_wishes_by_city <- data_subset %>%
+  group_by(City) %>%
+  summarize(total_active_wishes = sum(Number.Of.Active.Wishes))
+
+# Sort the data by total number of active wishes in descending order
+active_wishes_by_city <- active_wishes_by_city %>%
+  arrange(desc(total_active_wishes))
+
+# Select the top 5 and bottom 5 cities
+top_cities <- active_wishes_by_city %>% head(5)
+bottom_cities <- active_wishes_by_city %>% tail(5)
+
+print(top_cities)
+print(bottom_cities)
+
+# Combine the top and bottom 5 cities into one data frame
+cities_to_plot <- rbind(top_cities)
+
+#top_city_colors <- c(rep("steelblue", 5) nrow(cities_to_plot)-5))
+
+
+# Create a bar chart
+ggplot(cities_to_plot, aes(x = reorder(City, -total_active_wishes), y = total_active_wishes)) +
+  geom_bar(stat = "identity", fill = "#8ABD91") +
+  #scale_fill_manual (values = top_city_colors) +
+  ylab("Total Active Wishes") +
+  xlab("City") +
+  ggtitle("Total Number of Active Wishes by City") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme_minimal()
+
+```
+```{r}
+# Subset the data to only include rows where Number.Of.Wishes Granted is not NA
+data_subset <- data %>% filter(!is.na(Number.Of.Wishes.Granted) & !is.na(City) & City != '')
+#%>% filter(!is.na(Zip.Code))
+
+#data_subset %>% filter(City == '') 
+
+# Group the data by City and calculate the sum of Number.Of.wishes granted for each city
+granted_wishes_by_city <- data_subset %>%
+  group_by(City) %>%
+  summarize(total_granted_wishes = sum(Number.Of.Wishes.Granted, na.rm = TRUE))
+  
+
+# Sort the data by total number of active wishes in descending order
+granted_wishes_by_city <- granted_wishes_by_city %>%
+  arrange(desc(total_granted_wishes))
+
+# Select the top 5 and bottom 5 cities
+top_cities <- granted_wishes_by_city %>% head(5)
+bottom_cities <- granted_wishes_by_city %>% tail(5)
+
+print(top_cities)
+print(bottom_cities)
+
+# Combine the top and bottom 5 cities into one data frame
+cities_to_plot <- rbind(top_cities)
+
+#top_city_colors <- c(rep("steelblue", 5) nrow(cities_to_plot)-5))
+
+
+# Create a bar chart
+ggplot(cities_to_plot, aes(x = reorder(City, -total_granted_wishes), y = total_granted_wishes)) +
+  geom_bar(stat = "identity", fill = "#8ABD91") +
+  #scale_fill_manual (values = top_city_colors) +
+  ylab("Total Granted Wishes") +
+  xlab("City") +
+  ggtitle("Total Number of Granted Wishes by City") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme_minimal()
+
+```
+
+
+
